@@ -1,39 +1,53 @@
 #!/usr/bin/env python3
-"""
-Apple Mac Mini Refurbished Fiyat Takipçisi
-Her 10 dakikada bir kontrol eder, fiyat düşünce email atar!
-"""
-
 import requests
 from bs4 import BeautifulSoup
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import time
-import json
-from datetime import datetime
 
-# AYARLAR - BUNLARI DEĞİŞTİR!
-EMAIL_TO = "Gurkan.kalemler@gmail.com"  # Email adresin
-EMAIL_FROM = "Gurkan.kalemler@gmail.com"  # Gmail adresi (aynı)
-EMAIL_PASSWORD = "bsqvsaqilzwvjsyc"  # Gmail uygulama şifresi ✅
+# Email ayarları
+SENDER_EMAIL = "gurkan.kalemler@gmail.com"
+RECEIVER_EMAIL = "gurkan.kalemler@gmail.com"
+APP_PASSWORD = "bsqvsaqilzwvjsyc"
 
 # Hedef fiyat aralığı (USD)
 MIN_PRICE = 300
 MAX_PRICE = 600
 
 # Model filtresi (M2, M4 veya boş bırak = hepsi)
-ALLOWED_MODELS = ["M2", "M4"]  # M2 ve M4 kabul et
+ALLOWED_MODELS = ["M2", "M4"]  # M2 ve M4 kabul
 
-# RAM filtresi
-ALLOWED_RAM = ["16GB", "24GB", "32GB"]  # 16GB ve üstü
+# RAM filtresi (16GB, 24GB, 32GB veya boş bırak = hepsi)
+ALLOWED_RAM = ["16GB", "24GB", "32GB"]  # 16GB ve üzeri
 
-# SSD filtresi
-ALLOWED_SSD = ["256GB", "512GB", "1TB", "2TB"]  # 256GB ve üstü
+# SSD filtresi (256GB, 512GB, 1TB, 2TB veya boş bırak = hepsi)
+ALLOWED_SSD = ["256GB", "512GB", "1TB", "2TB"]  # 256GB ve üzeri
 
-def get_apple_refurb():
+def send_email(subject, body):
+    """Email gönder"""
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = RECEIVER_EMAIL
+        msg['Subject'] = subject
+        
+        msg.attach(MIMEText(body, 'html'))
+        
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(SENDER_EMAIL, APP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        
+        print(f"✅ Email gönderildi: {subject}")
+        return True
+    except Exception as e:
+        print(f"❌ Email hatası: {e}")
+        return False
+
+def get_apple_refurbished():
     """Apple refurbished sayfasını kontrol et"""
-    url = "https://www.apple.com/shop/refurbished/mac/mac-mini"
+    url = "https://www.apple.com/shop/refurbished/mac"
     
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -41,122 +55,120 @@ def get_apple_refurb():
     
     try:
         response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Mac Mini'leri bul
-        products = []
+        mac_minis = []
         
-        # Fiyat ve ürün bilgilerini çek
-        items = soup.find_all('div', class_='as-producttile')
+        # Tüm ürün kartlarını bul
+        tiles = soup.find_all('div', class_='rf-refurb-producttile')
         
-        for item in items:
+        for tile in tiles:
             try:
-                title = item.find('h3').text.strip()
-                price_text = item.find('span', class_='as-price-currentprice').text.strip()
-                price = float(price_text.replace('$', '').replace(',', ''))
+                # Başlık
+                title_tag = tile.find('h3', class_='rf-refurb-producttile-title')
+                if not title_tag:
+                    continue
+                    
+                title = title_tag.text.strip()
                 
-                # Model, RAM ve SSD kontrolü
-                model_ok = any(model in title for model in ALLOWED_MODELS)
-                ram_ok = any(ram in title for ram in ALLOWED_RAM)
-                ssd_ok = any(ssd in title for ssd in ALLOWED_SSD)
+                # Sadece Mac mini'leri al
+                if 'Mac mini' not in title:
+                    continue
                 
-                # Fiyat aralığında mı?
-                price_ok = MIN_PRICE <= price <= MAX_PRICE
+                # Fiyat
+                price_tag = tile.find('div', class_='as-price-currentprice')
+                if not price_tag:
+                    continue
                 
-                if model_ok and ram_ok and ssd_ok and price_ok:
-                    products.append({
-                        'title': title,
-                        'price': price,
-                        'url': 'https://www.apple.com' + item.find('a')['href'] if item.find('a') else url
-                    })
-            except:
+                price_text = price_tag.text.strip()
+                price_text = price_text.replace('$', '').replace(',', '')
+                price = int(float(price_text))
+                
+                # Link
+                link_tag = tile.find('a', href=True)
+                link = 'https://www.apple.com' + link_tag['href'] if link_tag else url
+                
+                # Fiyat kontrolü
+                if price < MIN_PRICE or price > MAX_PRICE:
+                    continue
+                
+                # Model kontrolü (M2, M4)
+                if ALLOWED_MODELS:
+                    if not any(model in title for model in ALLOWED_MODELS):
+                        continue
+                
+                # RAM kontrolü
+                if ALLOWED_RAM:
+                    if not any(ram in title for ram in ALLOWED_RAM):
+                        continue
+                
+                # SSD kontrolü
+                if ALLOWED_SSD:
+                    if not any(ssd in title for ssd in ALLOWED_SSD):
+                        continue
+                
+                mac_minis.append({
+                    'title': title,
+                    'price': price,
+                    'link': link
+                })
+                
+            except Exception as e:
+                print(f"⚠️ Ürün parse hatası: {e}")
                 continue
         
-        return products
-    
+        return mac_minis
+        
     except Exception as e:
-        print(f"❌ Hata: {e}")
+        print(f"❌ Scrape hatası: {e}")
         return []
 
-def send_email(subject, body):
-    """Email gönder"""
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_FROM
-        msg['To'] = EMAIL_TO
-        msg['Subject'] = subject
-        
-        msg.attach(MIMEText(body, 'html'))
-        
-        # Gmail SMTP
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(EMAIL_FROM, EMAIL_PASSWORD)
-        text = msg.as_string()
-        server.sendmail(EMAIL_FROM, EMAIL_TO, text)
-        server.quit()
-        
-        print("✅ Email gönderildi!")
-        return True
+def main():
+    print("🔍 Apple refurbished Mac mini kontrol ediliyor...")
     
-    except Exception as e:
-        print(f"❌ Email hatası: {e}")
-        return False
-
-def check_prices():
-    """Fiyatları kontrol et"""
-    print(f"\n⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("🔍 Apple kontrol ediliyor...")
+    macs = get_apple_refurbished()
     
-    products = get_apple_refurb()
-    
-    if not products:
-        print("❌ Ürün bulunamadı!")
-        return
-    
-    print(f"✅ {len(products)} ürün bulundu!\n")
-    
-    # Fiyatları göster
-    for p in products:
-        print(f"📦 {p['title']}")
-        print(f"💰 ${p['price']}")
+    if macs:
+        print(f"\n🎉 {len(macs)} ADET UYGUN MAC MINI BULUNDU!")
         
-        # Email gönder (her uygun üründe)
-        print(f"✅ Fiyat aralığında! Email gönderiliyor...")
-        
-        # Email gönder
-        subject = f"🎯 Mac Mini ${p['price']} - İYİ FİYAT!"
-        body = f"""
-        <h2>💰 Uygun Fiyat Bulundu!</h2>
-        <h3>{p['title']}</h3>
-        <p><strong>Fiyat:</strong> ${p['price']}</p>
-        <p><strong>Fiyat Aralığı:</strong> ${MIN_PRICE} - ${MAX_PRICE}</p>
-        <p><a href="{p['url']}" style="background:#007AFF;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">SATIN AL</a></p>
-        <p><small>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
+        # Email içeriği
+        email_body = f"""
+        <html>
+        <body>
+        <h2>🎉 Apple Refurbished Mac Mini Bulundu!</h2>
+        <p><strong>{len(macs)} adet uygun Mac mini!</strong></p>
+        <hr>
         """
         
-        send_email(subject, body)
+        for mac in macs:
+            email_body += f"""
+            <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+                <h3 style="color: #007aff;">{mac['title']}</h3>
+                <p><strong>Fiyat:</strong> ${mac['price']}</p>
+                <p><a href="{mac['link']}" style="background: #007aff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">SATIN AL! 🏃‍♂️</a></p>
+            </div>
+            """
         
-        print("-" * 50)
-
-def main():
-    """Ana döngü"""
-    print("🚀 Apple Mac Mini Fiyat Takipçisi Başladı!")
-    print(f"🎯 Modeller: {', '.join(ALLOWED_MODELS)}")
-    print(f"💾 RAM: {', '.join(ALLOWED_RAM)}")
-    print(f"💿 SSD: {', '.join(ALLOWED_SSD)}")
-    print(f"💰 Fiyat: ${MIN_PRICE} - ${MAX_PRICE}")
-    print(f"📧 Email: {EMAIL_TO}")
-    print(f"⏱️  Kontrol: Her 10 dakika\n")
-    print("=" * 50)
-    
-    # İlk kontrol
-    check_prices()
-    
-    # Her 10 dakikada bir kontrol et
-    while True:
-        time.sleep(600)  # 600 saniye = 10 dakika
-        check_prices()
+        email_body += """
+        </body>
+        </html>
+        """
+        
+        send_email(
+            f"🎉 {len(macs)} Mac Mini - ${macs[0]['price']}",
+            email_body
+        )
+        
+        # Console'a yazdır
+        for mac in macs:
+            print(f"\n💰 {mac['title']}")
+            print(f"   Fiyat: ${mac['price']}")
+            print(f"   Link: {mac['link']}")
+    else:
+        print("\n😔 Uygun Mac mini bulunamadı")
+        print(f"   Fiyat aralığı: ${MIN_PRICE}-${MAX_PRICE}")
 
 if __name__ == "__main__":
     main()
