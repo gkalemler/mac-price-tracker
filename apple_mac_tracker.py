@@ -174,4 +174,18 @@ def main():
         print(f"   Fiyat aralığı: ${MIN_PRICE}-${MAX_PRICE}")
 
 if __name__ == "__main__":
+    # TEST EMAIL
+    print("📧 Test email gönderiliyor...")
+    test_body = """
+    <html>
+    <body>
+    <h2>✅ MAC TRACKER TEST</h2>
+    <p>Sistem çalışıyor!</p>
+    </body>
+    </html>
+    """
+    send_email("✅ Mac Tracker Test", test_body)
+    
+    # Normal
     main()
+
