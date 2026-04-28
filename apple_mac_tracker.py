@@ -15,13 +15,13 @@ MIN_PRICE = 300
 MAX_PRICE = 600
 
 # Model filtresi (M2, M4 veya boş bırak = hepsi)
-ALLOWED_MODELS = ["M2", "M4"]  # M2 ve M4 kabul
+ALLOWED_MODELS = ["M2", "M4"]
 
-# RAM filtresi (16GB, 24GB, 32GB veya boş bırak = hepsi)
-ALLOWED_RAM = ["16GB", "24GB", "32GB"]  # 16GB ve üzeri
+# RAM filtresi
+ALLOWED_RAM = ["16GB", "24GB", "32GB"]
 
-# SSD filtresi (256GB, 512GB, 1TB, 2TB veya boş bırak = hepsi)
-ALLOWED_SSD = ["256GB", "512GB", "1TB", "2TB"]  # 256GB ve üzeri
+# SSD filtresi
+ALLOWED_SSD = ["256GB", "512GB", "1TB", "2TB"]
 
 def send_email(subject, body):
     """Email gönder"""
@@ -61,23 +61,19 @@ def get_apple_refurbished():
         
         mac_minis = []
         
-        # Tüm ürün kartlarını bul
         tiles = soup.find_all('div', class_='rf-refurb-producttile')
         
         for tile in tiles:
             try:
-                # Başlık
                 title_tag = tile.find('h3', class_='rf-refurb-producttile-title')
                 if not title_tag:
                     continue
                     
                 title = title_tag.text.strip()
                 
-                # Sadece Mac mini'leri al
                 if 'Mac mini' not in title:
                     continue
                 
-                # Fiyat
                 price_tag = tile.find('div', class_='as-price-currentprice')
                 if not price_tag:
                     continue
@@ -86,25 +82,20 @@ def get_apple_refurbished():
                 price_text = price_text.replace('$', '').replace(',', '')
                 price = int(float(price_text))
                 
-                # Link
                 link_tag = tile.find('a', href=True)
                 link = 'https://www.apple.com' + link_tag['href'] if link_tag else url
                 
-                # Fiyat kontrolü
                 if price < MIN_PRICE or price > MAX_PRICE:
                     continue
                 
-                # Model kontrolü (M2, M4)
                 if ALLOWED_MODELS:
                     if not any(model in title for model in ALLOWED_MODELS):
                         continue
                 
-                # RAM kontrolü
                 if ALLOWED_RAM:
                     if not any(ram in title for ram in ALLOWED_RAM):
                         continue
                 
-                # SSD kontrolü
                 if ALLOWED_SSD:
                     if not any(ssd in title for ssd in ALLOWED_SSD):
                         continue
@@ -126,6 +117,23 @@ def get_apple_refurbished():
         return []
 
 def main():
+    # ✅ TEST EMAIL GÖNDER
+    print("📧 Test email gönderiliyor...")
+    test_body = """
+    <html>
+    <body>
+    <h2>✅ MAC MINI TRACKER TEST EMAIL</h2>
+    <p><strong>Sistem başarıyla çalışıyor!</strong></p>
+    <p>Bu test email'idir. Tracker aktif ve her 5 dakikada çalışıyor.</p>
+    <p>Uygun Mac Mini bulunduğunda email alacaksınız!</p>
+    <hr>
+    <p style="color: #666;">Fiyat aralığı: $300-$600</p>
+    </body>
+    </html>
+    """
+    send_email("✅ Mac Mini Tracker - Test Email", test_body)
+    
+    # Normal kontrol
     print("🔍 Apple refurbished Mac mini kontrol ediliyor...")
     
     macs = get_apple_refurbished()
@@ -133,7 +141,6 @@ def main():
     if macs:
         print(f"\n🎉 {len(macs)} ADET UYGUN MAC MINI BULUNDU!")
         
-        # Email içeriği
         email_body = f"""
         <html>
         <body>
@@ -151,17 +158,13 @@ def main():
             </div>
             """
         
-        email_body += """
-        </body>
-        </html>
-        """
+        email_body += "</body></html>"
         
         send_email(
             f"🎉 {len(macs)} Mac Mini - ${macs[0]['price']}",
             email_body
         )
         
-        # Console'a yazdır
         for mac in macs:
             print(f"\n💰 {mac['title']}")
             print(f"   Fiyat: ${mac['price']}")
