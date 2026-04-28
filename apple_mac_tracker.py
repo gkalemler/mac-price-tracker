@@ -8,7 +8,7 @@ from email.mime.multipart import MIMEMultipart
 # Email ayarları
 SENDER_EMAIL = "gurkan.kalemler@gmail.com"
 RECEIVER_EMAIL = "gurkan.kalemler@gmail.com"
-APP_PASSWORD = "bsqvsaqilzwvjsyc"
+APP_PASSWORD = "ekljigtugvumdxxh"
 
 # Hedef fiyat aralığı (USD)
 MIN_PRICE = 300
